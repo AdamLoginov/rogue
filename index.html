@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link href="https://fonts.googleapis.com/css?family=Ubuntu:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Roboto:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Playfair+Display:400,400i|Tinos:400,400i&amp;subset=cyrillic" rel="stylesheet">
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+	<script>
+	function Game() {
+		this.width = 40;
+		this.height = 24;
+		this.map = [];
+		this.player = { x: 0, y: 0, hp: 100, attack: 10 };
+		this.enemies = [];
+
+		this.init = function() {
+			var self = this;
+			setInterval(function() {
+				self.enemyMove();
+				self.enemyAttack();
+				self.drawMap();
+			}, 500);
+			this.bindControls();
+			this.generateMap();
+			this.generateRooms();
+			this.placeItems();
+			this.drawMap();
+		};
+
+		this.generateMap = function() {
+			for (var y = 0; y < this.height; y++) {
+				this.map[y] = [];
+				for (var x = 0; x < this.width; x++) {
+					this.map[y][x] = 'W';
+				}
+			}
+		};
+
+		this.generateRooms = function() {
+			this.rooms = [];
+			var roomCount = Math.floor(Math.random() * 6) + 5;
+			for (var i = 0; i < roomCount; i++) {
+				var roomWidth = Math.floor(Math.random() * 6) + 3;
+				var roomHeight = Math.floor(Math.random() * 6) + 3;
+				var startX = Math.floor(Math.random() * (this.width - roomWidth - 1)) + 1;
+				var startY = Math.floor(Math.random() * (this.height - roomHeight - 1)) + 1;
+				this.rooms.push({ x: startX, y: startY, w: roomWidth, h: roomHeight });
+				for (var y = startY; y < startY + roomHeight; y++) {
+					for (var x = startX; x < startX + roomWidth; x++) {
+						this.map[y][x] = 'WE';
+					}
+				}
+			}
+
+			var horizontalTunnels = Math.floor(Math.random() * 3) + 3;
+			for (var i = 0; i < horizontalTunnels; i++) {
+				var y = Math.floor(Math.random() * this.height);
+				for (var x = 0; x < this.width; x++) {
+					this.map[y][x] = 'WE';
+				}
+			}
+
+			var verticalTunnels = Math.floor(Math.random() * 3) + 3;
+			for (var i = 0; i < verticalTunnels; i++) {
+				var x = Math.floor(Math.random() * this.width);
+				for (var y = 0; y < this.height; y++) {
+					this.map[y][x] = 'WE';
+				}
+			}
+		};
+
+		this.placeItems = function() {
+			var self = this;
+			function getRandomFloorPosition() {
+				var x, y;
+				do {
+					x = Math.floor(Math.random() * self.width);
+					y = Math.floor(Math.random() * self.height);
+				} while (self.map[y][x] !== 'WE');
+				return { x: x, y: y };
+			}
+
+			for (var i = 0; i < 2; i++) {
+				var pos = getRandomFloorPosition();
+				this.map[pos.y][pos.x] = 'SW';
+			}
+
+			var playerPos = getRandomFloorPosition();
+			self.player.x = playerPos.x;
+			self.player.y = playerPos.y;
+
+			for (var i = 0; i < 10; i++) {
+				var pos = getRandomFloorPosition();
+				self.map[pos.y][pos.x] = 'HP';
+			}
+
+			for (var i = 0; i < 10; i++) {
+				var pos = getRandomFloorPosition();
+				self.enemies.push({ x: pos.x, y: pos.y, hp: 100 });
+			}
+		};
+
+		this.bindControls = function() {
+			var self = this;
+			document.addEventListener('keydown', function(e) {
+				var dx = 0, dy = 0;
+				switch(e.key.toLowerCase()) {
+					case 'w': dy = -1; break;
+					case 's': dy = 1; break;
+					case 'a': dx = -1; break;
+					case 'd': dx = 1; break;
+					case ' ': self.attackEnemies(); return;
+					default: return;
+				}
+				var newX = self.player.x + dx;
+				var newY = self.player.y + dy;
+				if (newX >= 0 && newX < self.width && newY >= 0 && newY < self.height) {
+					var target = self.map[newY][newX];
+					if (target === 'WE' || target === 'HP' || target === 'SW') {
+						if (target === 'HP') self.player.hp = Math.min(100, Math.round(100 * 0.8));
+						if (target === 'SW') self.player.attack += 10;
+						self.map[newY][newX] = 'WE';
+						self.player.x = newX;
+						self.player.y = newY;
+						self.drawMap();
+						self.enemyAttack();
+					}
+				}
+			});
+		};
+
+		this.attackEnemies = function() {
+				for (var i = 0; i < this.enemies.length; i++) {
+					var dx = Math.abs(this.enemies[i].x - this.player.x);
+					var dy = Math.abs(this.enemies[i].y - this.player.y);
+					if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+						this.enemies[i].hp -= this.player.attack;
+					}
+				}
+				this.enemies = this.enemies.filter(e => e.hp > 0);
+				if (this.enemies.length === 0) {
+					alert("Поздравляем! Все враги побеждены!");
+					location.reload();
+				}
+				this.drawMap();
+			};
+
+			this.enemyAttack = function() {
+				for (var i = 0; i < this.enemies.length; i++) {
+					var dx = Math.abs(this.enemies[i].x - this.player.x);
+					var dy = Math.abs(this.enemies[i].y - this.player.y);
+					if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+						this.player.hp -= 5; // Урон от врага
+					}
+				}
+				if (this.player.hp <= 0) {
+					alert("Вы проиграли! Герой пал в бою.");
+					location.reload();
+				}
+			};
+
+			this.enemyMove = function() {
+				if (this.player.hp <= 0) return;
+				for (var i = 0; i < this.enemies.length; i++) {
+					var e = this.enemies[i];
+					var dx = this.player.x - e.x;
+					var dy = this.player.y - e.y;
+					var moveX = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) : 0;
+					var moveY = moveX === 0 ? Math.sign(dy) : 0;
+					var newX = e.x + moveX;
+					var newY = e.y + moveY;
+					if (newX >= 0 && newX < this.width && newY >= 0 && newY < this.height && this.map[newY][newX] === 'WE') {
+						var occupied = false;
+						for (var j = 0; j < this.enemies.length; j++) {
+							if (j !== i && this.enemies[j].x === newX && this.enemies[j].y === newY) {
+								occupied = true;
+								break;
+							}
+						}
+						if (!occupied && !(this.player.x === newX && this.player.y === newY)) {
+							e.x = newX;
+							e.y = newY;
+						}
+					}
+				}
+			};
+
+			this.drawMap = function() {
+			var field = $('.field');
+			field.empty();
+			for (var y = 0; y < this.height; y++) {
+				for (var x = 0; x < this.width; x++) {
+					var tileType = this.map[y][x];
+					var tile = $('<div class="tile"></div>');
+					tile.addClass('tile' + tileType);
+					tile.css({ left: x * 50 + 'px', top: y * 50 + 'px' });
+					field.append(tile);
+
+					if (this.player.x === x && this.player.y === y) {
+						var playerTile = $('<div class="tile tileP"></div>');
+						playerTile.css({ left: x * 50 + 'px', top: y * 50 + 'px' });
+						var hpBar = $('<div class="health"></div>').css('width', this.player.hp + '%');
+						playerTile.append(hpBar);
+						field.append(playerTile);
+					}
+
+					for (var e = 0; e < this.enemies.length; e++) {
+						if (this.enemies[e].x === x && this.enemies[e].y === y) {
+							var enemyTile = $('<div class="tile tileE"></div>');
+							enemyTile.css({ left: x * 50 + 'px', top: y * 50 + 'px' });
+							var hpBar = $('<div class="health"></div>').css('width', this.enemies[e].hp + '%');
+							enemyTile.append(hpBar);
+							field.append(enemyTile);
+						}
+					}
+				}
+			}
+		};
+	}
+	</script>
+	<style>
+		* { box-sizing: border-box; }
+		html, body { height: 100%; margin: 0; padding: 0; }
+		body { background-color: #000000; color: #ffffff; }
+		h1 { font-family: "Playfair Display"; font-size: 30px; padding: 10px 0px; margin: 0px; }
+		.field-box { border: 2px solid #d0d0d0; float: left; }
+		.field { position: relative; width: 2000px; height: 1200px; }
+		.field .tile { position: absolute; width: 50px; height: 50px; background-size: 100%; z-index: 5; }
+		.field .tileW { background-image: url(images/tile-W.png); }
+		.field .tileWE { background-image: url(images/tile-WE.png); z-index: 8; }
+		.field .tileP { background-image: url(images/tile-P.png); z-index: 11; }
+		.field .tileHP { background-image: url(images/tile-HP.png); z-index: 9; }
+		.field .tileSW { background-image: url(images/tile-SW.png); z-index: 9; }
+		.field .tileE { background-image: url(images/tile-E.png); z-index: 10; }
+		.field .tile .health { background-color: #ff0000; position: absolute; left: 0px; top: 0px; height: 3px; z-index: 11; }
+		.field .tileP .health { background-color: #00ff00; }
+	</style>
+</head>
+<body>
+	<h1>Игровое поле</h1>
+	<div class="field-box"><div class="field"></div></div>
+	<div class="cl"></div>
+	<script>
+		var game = new Game();
+		game.init();
+	</script>
+</body>
+</html>
